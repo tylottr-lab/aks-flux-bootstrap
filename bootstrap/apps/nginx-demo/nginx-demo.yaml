@@ -1,0 +1,275 @@
+# Example Nginx Demo manifests to demonstrate a number of configuration elements
+#
+# This includes mounting a cert to the backend container with end-to-end TLS, some security features
+# on the container and some extra resources to help support the application such as PDB and HPA.
+#
+# Selfsigned cert used generated with
+# $ openssl req -new -x509 -newkey rsa:2086 -nodes -subj "/CN=nginx-demo" -days 3650 -keyout tls.key -out tls.crt
+# $ kubectl create secret tls nginx-demo --cert=tls.crt --key=tls.key --dry-run -oyaml
+#
+# To access:
+# $ ingressIP=$(kubectl get ingress nginx-demo -ojsonpath="{.status.loadBalancer.ingress[0].ip}")
+# $ ingressHost=$(kubectl get ingress nginx-demo -ojsonpath="{.spec.rules[0].host}")
+# $ curl -k --resolve "${ingressHost}:443:${ingressIP}" "https://${ingressHost}"
+# $ openssl s_client -connect "${ingressIP}:443" -servername "${ingressHost}" -showcerts </dev/null
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-demo
+  labels:
+    app: nginx-demo
+    app.kubernetes.io/name: nginx-demo
+data:
+  default.conf: |
+    server {
+      listen              8080;
+      listen              8443 ssl;
+      ssl_certificate     /etc/ssl/tls.crt;
+      ssl_certificate_key /etc/ssl/tls.key;
+      server_name         _;
+
+      location / {
+        root   /usr/share/nginx/html;
+        index  index.html;
+      }
+
+      location /health {
+        return 200 "OK\n";
+      }
+    }
+  index.html: |
+    Hello from Kubernetes!
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: nginx-demo-cert
+  labels:
+    app: nginx-demo
+    app.kubernetes.io/name: nginx-demo
+type: kubernetes.io/tls
+data:
+  tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURGRENDQWZlZ0F3SUJBZ0lVSVp2Ui91TThObHlRLzNKdlJTWGdoUUlSemNFd0RRWUpLb1pJaHZjTkFRRUwKQlFBd0ZURVRNQkVHQTFVRUF3d0tibWRwYm5ndFpHVnRiekFlRncweU1qRXhNalV4TVRBMk5EVmFGdzB6TWpFeApNakl4TVRBMk5EVmFNQlV4RXpBUkJnTlZCQU1NQ201bmFXNTRMV1JsYlc4d2dnRW1NQTBHQ1NxR1NJYjNEUUVCCkFRVUFBNElCRXdBd2dnRU9Bb0lCQlRQUWFVdmo1SXBBcjQxL2NsQ0s0Kzkyb1ZnSzBXZDRxT0g3dEQ1cElWaEIKN241enNROXRibHVJYjNRR2lESitMdjNmL1dpN3VnanBrUnJucmVObUJESjZYWlVSWGh2dFU3NUlmWjUwQXJCcQpXd2pXQzRxbkxqR2o4WElTUDQrNWt2TmVDelJoamZhODdLWHJkcisrcVU1UHd3N1ltV3o5RXZmaTBCbnlFcDkwCmNSMzBIKzZ1MXh1TjVrZWExTFdoTE1uQkVsRTJIYk9vd1M0eklMNk1qSXRSekRyMzNqdFlpelhpbmd3WVVtWHMKQWZRVGtwWW1kZDFPZitWbTI5bWtiVDF5dG9EbEwyNDJJTnhHdEMwV3ZsaC9uVWJUQkVYbHpaWit4eS81OGFVNQpuSlVSQk02OUN2V2s4Vk1yMHpvUi9sWFpoRS8rYm0vMFFiMVlwd3NEenAvSExQYTVCd0lEQVFBQm8xTXdVVEFkCkJnTlZIUTRFRmdRVWdzNFU5V3FOVC9mK3FlVVdHdWxVemtHKytmVXdId1lEVlIwakJCZ3dGb0FVZ3M0VTlXcU4KVC9mK3FlVVdHdWxVemtHKytmVXdEd1lEVlIwVEFRSC9CQVV3QXdFQi96QU5CZ2txaGtpRzl3MEJBUXNGQUFPQwpBUVlBQXRBRW1NTXFJTjc5YW9RWURpTFBMTlBMWFF3OU1JejBtbmdRN3daZkhWa2U5b2t0dVUzRXlyS1F2M3RFCkJnWXlDOTdOV1FWMmd5bGhWVXFBRktvQUlPNUNHV2ZaZHk5NUlaYlpOMkdUK2lhd0VpM25yN3dmbEUxemorU0cKcVV1Y3NiYmwvT01tRjB1bkdjQkwvRk1yWkIzUm9QM0p1cXZOYkhGbUFIZHJ4MzcvTnc3WjRrcWpPZXBHZXpOTwp2T25XTU91Z280K3MrUGlxRmRDQk91M3VpVVVXNVdhSzdqU2k1bnVKTm5NUG9sNWJtVEE4VEhmQmg1YTdTcXdpCk96enRtTUZtQzVlcWlyWCswb29WWUR5N1hTSU9ZOUlhcDB0cThQVk5EUDF2cTlNZVB1L2pDUFZvTGZ2WVFZSFEKbGR2TVZLQ21KalZUTnlKMUwwUVFWSWd1Q2JYTE45QTMKLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  tls.key: LS0tLS1CRUdJTiBQUklWQVRFIEtFWS0tLS0tCk1JSUUwZ0lCQURBTkJna3Foa2lHOXcwQkFRRUZBQVNDQkx3d2dnUzRBZ0VBQW9JQkJUUFFhVXZqNUlwQXI0MS8KY2xDSzQrOTJvVmdLMFdkNHFPSDd0RDVwSVZoQjduNXpzUTl0Ymx1SWIzUUdpREorTHYzZi9XaTd1Z2pwa1JybgpyZU5tQkRKNlhaVVJYaHZ0VTc1SWZaNTBBckJxV3dqV0M0cW5MakdqOFhJU1A0KzVrdk5lQ3pSaGpmYTg3S1hyCmRyKytxVTVQd3c3WW1XejlFdmZpMEJueUVwOTBjUjMwSCs2dTF4dU41a2VhMUxXaExNbkJFbEUySGJPb3dTNHoKSUw2TWpJdFJ6RHIzM2p0WWl6WGluZ3dZVW1Yc0FmUVRrcFltZGQxT2YrVm0yOW1rYlQxeXRvRGxMMjQySU54Rwp0QzBXdmxoL25VYlRCRVhselpaK3h5LzU4YVU1bkpVUkJNNjlDdldrOFZNcjB6b1IvbFhaaEUvK2JtLzBRYjFZCnB3c0R6cC9ITFBhNUJ3SURBUUFCQW9JQkJSU0RkalMwQ0liTjNsTUVlcU0xb2RGc0k2dWlPTTZnNENmOENadk4KN29RdE1qbUJIMEFPNEtxL2hQU29JMkx1UHplRzV5S0FkRUpVQ24xZTdTTERBSFZscWNnN1JJbUU5K3MxY3ZwNQpUcGsrdWtUd3pVZjdNVmc0NG4zNWlJMmorSEIrc3F2dDFaRXlzZlJzbVNxSDF5cm9mRDdUOVVaSG1hdG5jbUZiClRCRXlQaGlLbW9jWGRxWDhQOHBZbHFWWmM2T2UyOHUyWE5oL0FFQlZ1TS8zQTR2S3FYZGV0d3hIMXUwUDdKblQKRmJSRTlFT3ZSelpvQXJXYUZiUVc2VW04Ykx0eVcwd1NDdGJKcWtPbHZaM3FoNk9CR3ZPWDBwKzZTYXU4UitPOApXTktUSFJKM0dyeGhsSFVRZ1RkczVZaVM5YXNZYnV5aVhBamR6eEN1ZThkZmtZaEF1MStSZ1FLQmd3YnBXdWUvCnFsNTRmd1IzYmZIcTJxOG5RSTYwWUJBMWkvM3FHdkJOVThISzhKN2x3YVJFZG1aekxiRUZNV1pMWDdZcU9QaFIKVEdud1F6TDFPN2dVZU1kQUFJOHpROEFMTVdTVDVmU09BUitkWjZXdUk0enBQUjBORC84b3piVWt4TzMyQ0RUdwppQTlHSndma0U3a3czbkY3SHRRcy9YUnBZV256UVcyWm80VFIyQjZCQW9HREIzOHE4NTNVSlpiYUN0VkJ1V3VNCncvMGxCdENHc05xY2ZaS1Q3S1RHUG9VMjZLbGJPUS9nYlBpMGl4SjNkdlBnNDREeHh0aEhCbEl4aHRSaDJXWUcKYklSMmk0VjBUOGhVeGhWQUpFZXMxZmtnU0h0Y0hIeFJKMUpDdFF4QUVXZHFDWUJwbmJvbm1pekNWMXZLSlJtWQpjRE5BaU1GQlRvbklZbEFaSXZVMG1CUlRJNGNDZ1lNQXhYWkJ1dUEybnRmK0ZaNE5pNXBRUmQ4c2pmRFNua2M3ClZTOGdkbURNbGV0NHNFZUdINlhmRlNlYVErd1pjSHdFQm41SktEbVE4U0Z1eEhPZnZaa2xFMzE4ZmNvbjJwZnUKazVyc1NoVFNCRzBXem5KbFBYcDJqWWlsZjFaRnl3NjNSK2Z1a0pGK3N1T1VPOTMvb3ZhUVQ1OUhLcVkyb2JRZgpjT2h5Wk4wYzY1WmxBUUtCZ3dENzdZeDdUR3oreDNLaW1mVVlMQ3RTSUxrclNITVF6M2dnZExDYzFMVkNVWG5yCk9XRmROeTIyM0NSaGNUTTVRbTA2OFFJVVJBYU5aWmo0YWp2YWk3OVZDQ2E2aHhFdUVBck1vVlhoM3N0YjM2UUUKSll4THVXOTYrZXpBUmV6QzhZVjd5T0YrblZJOHkrb2h6NEJkUXNoL3dkbngzSHZOMUhNclpwRlROT3M5eDhnagpBb0dEQkUvbm5nbXM1K3FHdUFUQ2l5UEo3K0tGay95Q2pRNmNTa0Fsb20yaGhjd3VwcmtnaTFLMW42ZTJIT012CmFwOURTTlkrdTJ6b2YvM0RYRFh4UDdjV0U1OVVLVE91eEgrNEZydUg0eUZ0OW12TTlaWlFuTmZ1cU0xVmdBTi8KMENONWdsL0h3Z1hHRG5zcUJLQ2NENHVBd1plOElZQmFiQ3NGVnNnNEtlazlzL1Q3UWc0PQotLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tCg==
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-demo
+  labels:
+    app: nginx-demo
+    app.kubernetes.io/name: nginx-demo
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: nginx-demo
+      app.kubernetes.io/name: nginx-demo
+  template:
+    metadata:
+      labels:
+        app: nginx-demo
+        app.kubernetes.io/name: nginx-demo
+      annotations:
+        seccomp.security.alpha.kubernetes.io/pod: "runtime/default"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nginx
+          image: nginx:1.7.9
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: https
+              containerPort: 8443
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/conf.d/
+              readOnly: true
+            - name: tls
+              mountPath: /etc/ssl/
+              readOnly: true
+            - name: index
+              mountPath: /usr/share/nginx/html/
+              readOnly: true
+          readinessProbe:
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            httpGet:
+              port: http
+              path: /health
+          livenessProbe:
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            httpGet:
+              port: http
+              path: /health
+          resources:
+            requests:
+              cpu: 10m
+              memory: 8Mi
+            limits:
+              cpu: 20m
+              memory: 16Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - NET_BIND_SERVICE
+                - SETGID
+                - SETUID
+      volumes:
+        - name: config
+          configMap:
+            name: nginx-demo
+            defaultMode: 0644
+            optional: true
+            items:
+              - key: default.conf
+                path: default.conf
+        - name: index
+          configMap:
+            name: nginx-demo
+            defaultMode: 0644
+            optional: true
+            items:
+              - key: index.html
+                path: index.html
+        - name: tls
+          secret:
+            secretName: nginx-demo-cert
+            defaultMode: 0600
+            optional: false
+            items:
+              - key: tls.crt
+                path: tls.crt
+              - key: tls.key
+                path: tls.key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-demo
+  labels:
+    app: nginx-demo
+    app.kubernetes.io/name: nginx-demo
+spec:
+  type: ClusterIP
+  selector:
+    app: nginx-demo
+    app.kubernetes.io/name: nginx-demo
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+    - name: https
+      port: 443
+      targetPort: https
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nginx-demo
+  labels:
+    app: nginx-demo
+    app.kubernetes.io/name: nginx-demo
+  annotations:
+    # As we're using ingress-nginx, refer to the below link:
+    # https://github.com/kubernetes/ingress-nginx/blob/main/docs/user-guide/nginx-configuration/annotations.md#server-side-https-enforcement-through-redirect
+
+    # Required as otherwise traffic would flow to the backend as HTTP
+    # without informing the Ingress that we're doing end to end.
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+
+    # Default value to redirect SSL is true - override as this
+    # is a demonstration (You can update this)
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+
+    # Cert-Manager SHIM could also be used if we're managing certs via it.
+    # Ensure tls.hosts, rules[].host are updated and delete secret/nginx-demo-cert
+    # cert-manager.io/cluster-issuer: letsencrypt-staging
+spec:
+  ingressClassName: nginx
+  tls:
+    - secretName: nginx-demo-cert
+      hosts:
+        - nginx-demo
+  rules:
+    - host: nginx-demo
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nginx-demo
+                port:
+                  name: https
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nginx-demo
+  labels:
+    app: nginx-demo
+    app.kubernetes.io/name: nginx-demo
+spec:
+  podSelector:
+    matchLabels:
+      app: nginx-demo
+      app.kubernetes.io/name: nginx-demo
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - port: http
+        - port: https
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: nginx-demo
+  labels:
+    app: nginx-demo
+    app.kubernetes.io/name: nginx-demo
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: nginx-demo
+      app.kubernetes.io/name: nginx-demo
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nginx-demo
+  labels:
+    app: nginx-demo
+    app.kubernetes.io/name: nginx-demo
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: nginx-demo
+  minReplicas: 3
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 75
